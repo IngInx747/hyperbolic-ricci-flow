@@ -62,5 +62,5 @@
 #*.rtf   diff=astextplain
 #*.RTF   diff=astextplain
 
-data/* linguist-vendored=false
-3dparty/* linguist-vendored=false
+data/* linguist-vendored
+3dparty/* linguist-vendored
