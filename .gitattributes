@@ -62,5 +62,13 @@
 #*.rtf   diff=astextplain
 #*.RTF   diff=astextplain
 
+###############################################################################
+# linguist overrides
+# 
+# Use the linguist-vendored attribute to vendor or un-vendor paths.
+# Use the linguist-documentation attribute to mark or unmark paths as documentation.
+# Use the linguist-generated attribute to mark or unmark paths as generated.
+# Use the linguist-detectable attribute to mark or unmark paths as detectable.
+###############################################################################
 data/* linguist-vendored
 3dparty/* linguist-vendored
