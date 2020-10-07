@@ -23,7 +23,7 @@ int g_shade_flag = 0;
 bool g_show_domn = true;
 bool g_show_open = true;
 bool g_show_orgn = false;
-bool g_show_axis = true;
+bool g_show_axis = false;
 bool g_show_bndr = true;
 bool g_show_circ = true;
 
@@ -54,7 +54,7 @@ void set_color(int color)
     case 5: glColor3f(0.0f, 1.0f, 1.0f); break;
     case 6: glColor3f(1.0f, 0.0f, 1.0f); break;
     case 7: glColor3f(1.0f, 1.0f, 1.0f); break;
-    case 8: glColor3f(0.0f, 0.0f, 0.0f); break;
+    case 8: glColor3f(0.2f, 0.2f, 0.2f); break;
     case 9: glColor3f(0.5f, 0.5f, 0.5f); break;
     default: break;
     }
@@ -128,7 +128,7 @@ void setupObject(void)
 void setupEye(void)
 {
     glLoadIdentity();
-    gluLookAt(0, 0, 5, 0, 0, 0, 0, 1, 0);
+    gluLookAt(0, 0, 3, 0, 0, 0, 0, 1, 0);
 }
 
 /*! setup light */
@@ -141,11 +141,12 @@ void setupLight()
 }
 
 /*! draw g_mesh */
-void drawMesh(M* pMesh)
+void drawMesh(M* pMesh, int id = 0)
 {
     glEnable(GL_LIGHTING);
     glLineWidth(1.0);
     glColor3f(153.0 / 255.0, 204.0 / 255.0, 255.0 / 255.0);
+    set_color(id);
 
     for (M::MeshFaceIterator fiter(pMesh); !fiter.end(); ++fiter)
     {
@@ -199,7 +200,7 @@ void drawSharpEdges(M* pMesh)
 
 void drawArch(const CPoint2& center, double radius)
 {
-    int numSample = 100;
+    int numSample = 200;
     if (!g_show_circ) return;
 
     glDisable(GL_LIGHTING);
@@ -248,10 +249,12 @@ void display()
         drawSharpEdges(&g_hyperbolic_map.domain_mesh());
         drawMesh(&g_hyperbolic_map.domain_mesh());
 
-        for (auto& mesh : g_hyperbolic_map.tesselation_meshes())
+        for (int i = 0; i < g_hyperbolic_map.tessellation_meshes().size(); ++i)
         {
+            auto& mesh = g_hyperbolic_map.tessellation_meshes()[i];
+            int id = g_hyperbolic_map.tessellation_index(i);
             drawSharpEdges(&mesh);
-            drawMesh(&mesh);
+            drawMesh(&mesh, id);
         }
 
         for (auto& p : g_hyperbolic_map.geodesic_circles())
@@ -305,8 +308,8 @@ void help()
     printf("1  -  Perform Ricci flow on mesh\n");
     printf("2  -  Slice mesh into a fundamental domain\n");
     printf("3  -  Embed domain into Poincare disk\n");
-    printf("4  -  Tesselate domains into Poincare disk\n");
-    printf("5  -  Tesselate disk, one domain at a time\n");
+    printf("4  -  Tessellate domains into Poincare disk\n");
+    printf("5  -  Tessellate disk, one domain at a time\n");
     printf("6  -  Fine boundary with geodesic lines\n");
     printf("0  -  Clear tesselation\n");
     printf("w  -  Wireframe Display\n");
@@ -339,7 +342,7 @@ void keyBoard(unsigned char key, int x, int y)
             break;
         case '3':
             // embed sliced mesh into Poincare disk
-            g_hyperbolic_map.isometrical_embed();
+            g_hyperbolic_map.isometric_embed();
             // sort out segments on domain boundary
             g_hyperbolic_map.sort_domain_boundaries();
             // compute fuchsian group
@@ -347,13 +350,13 @@ void keyBoard(unsigned char key, int x, int y)
             g_show_domn = true;
             break;
         case '4':
-            // tesselate Poincare disk
-            g_hyperbolic_map.tesselate_disk(1);
+            // tessellate Poincare disk
+            g_hyperbolic_map.tessellate_disk(1);
             g_show_domn = true;
             break;
         case '5':
-            // tesselate Poincare disk one domain at a time
-            g_hyperbolic_map.tesselate_disk_single_step(2);
+            // tessellate Poincare disk one domain at a time
+            g_hyperbolic_map.tessellate_disk_single_step(2);
             g_show_domn = true;
             break;
         case '6':
@@ -362,8 +365,8 @@ void keyBoard(unsigned char key, int x, int y)
             g_show_circ = true;
             break;
         case '0':
-            // clear tesselation
-            g_hyperbolic_map.clear_tesselation();
+            // clear tessellation
+            g_hyperbolic_map.clear_tessellation();
             break;
         case 'f':
             // Flat Shading

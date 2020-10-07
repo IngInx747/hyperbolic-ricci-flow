@@ -154,7 +154,7 @@ void MeshLib::HyperbolicMap::slice_fundamental_domain()
     printf("[Hyperbolic Map] Mesh has been cut. V+F-E = %d\n", chi);
 }
 
-void MeshLib::HyperbolicMap::isometrical_embed()
+void MeshLib::HyperbolicMap::isometric_embed()
 {
     int chi = compute_chi(open_mesh());
 
@@ -353,7 +353,7 @@ void MeshLib::HyperbolicMap::compute_fuchsian_group()
     printf("[Hyperbolic Map] Fuchsian group has been generated.\n");
 }
 
-void MeshLib::HyperbolicMap::tesselate_disk(int level)
+void MeshLib::HyperbolicMap::tessellate_disk(int level)
 {
     if (m_fuchsianGroupGenerators.empty())
     {
@@ -361,25 +361,22 @@ void MeshLib::HyperbolicMap::tesselate_disk(int level)
         return;
     }
 
-    if (m_tesselatingActions.empty() || m_tesselatingActions.level() != level)
+    if (m_tessellatingActions.empty() || m_tessellatingActions.level() != level)
     {
         std::vector<int> domains;
         for (auto& p : m_fuchsianGroupGenerators) domains.push_back(p.first);
-        m_tesselatingActions.span_complete_tree(domains, level);
+        m_tessellatingActions.span_complete_tree(domains, level);
     }
 
-    // reset single-step iterator
-    m_tesselatingIterator.clear();
+    // reset
+    clear_tessellation();
 
-    // clear domains
-    m_tesselationMeshes.clear();
-
-    for (Tree<int>::PathIterator iter(m_tesselatingActions); !iter.end(); ++iter)
+    for (Tree<int>::PathIterator iter(m_tessellatingActions); !iter.end(); ++iter)
     {
         auto path = *iter;
 
-        m_tesselationMeshes.emplace_back(domain_mesh());
-        M& mesh = m_tesselationMeshes.back();
+        m_tessellationMeshes.emplace_back(domain_mesh());
+        M& mesh = m_tessellationMeshes.back();
         MobiusTransform<double> mt;
 
         // composite Mobius transforms
@@ -398,13 +395,16 @@ void MeshLib::HyperbolicMap::tesselate_disk(int level)
             uv = mt(uv);
             pV->point() = CPoint(uv.real(), uv.imag(), 0);
         }
+
+        // label mesh with id of last Mobius transform
+        m_tessellationIndices[iter.count()] = path.back();
     }
 
-    printf("[Hyperbolic Map] Poincare disk tesselation finished.\n");
-    printf("[Hyperbolic Map] Generated new meshes: %zd\n", m_tesselationMeshes.size());
+    printf("[Hyperbolic Map] Poincare disk tessellation finished.\n");
+    printf("[Hyperbolic Map] Generated new meshes: %zd\n", m_tessellationMeshes.size());
 }
 
-void MeshLib::HyperbolicMap::tesselate_disk_single_step(int level)
+void MeshLib::HyperbolicMap::tessellate_disk_single_step(int level)
 {
     if (m_fuchsianGroupGenerators.empty())
     {
@@ -412,30 +412,29 @@ void MeshLib::HyperbolicMap::tesselate_disk_single_step(int level)
         return;
     }
 
-    if (m_tesselatingActions.empty() || m_tesselatingActions.level() != level)
+    if (m_tessellatingActions.empty() || m_tessellatingActions.level() != level)
     {
         std::vector<int> domains;
         for (auto& p : m_fuchsianGroupGenerators) domains.push_back(p.first);
-        m_tesselatingActions.span_complete_tree(domains, level);
-        m_tesselatingIterator.clear();
-        m_tesselationMeshes.clear();
+        m_tessellatingActions.span_complete_tree(domains, level);
+        clear_tessellation();
     }
 
-    if (m_tesselatingIterator.end())
+    if (m_tessellatingIterator.end())
     {
-        m_tesselatingIterator.reset(m_tesselatingActions);
+        m_tessellatingIterator.reset(m_tessellatingActions);
     }
 
-    auto path = *m_tesselatingIterator;
-    int id = m_tesselatingIterator.count();
+    auto path = *m_tessellatingIterator;
+    int id = m_tessellatingIterator.count();
 
-    if (m_tesselationMeshes.size() <= id)
+    if (m_tessellationMeshes.size() <= id)
     {
-        m_tesselationMeshes.resize(id + 1);
+        m_tessellationMeshes.resize(id + 1);
     }
 
     // copy whole domain
-    M& mesh = m_tesselationMeshes[id];
+    M& mesh = m_tessellationMeshes[id];
     mesh.copy_from(domain_mesh());
     MobiusTransform<double> mt;
 
@@ -456,13 +455,17 @@ void MeshLib::HyperbolicMap::tesselate_disk_single_step(int level)
         pV->point() = CPoint(uv.real(), uv.imag(), 0);
     }
 
-    ++m_tesselatingIterator;
+    // label mesh with id of last Mobius transform
+    m_tessellationIndices[id] = path.back();
+
+    ++m_tessellatingIterator;
 }
 
-void MeshLib::HyperbolicMap::clear_tesselation()
+void MeshLib::HyperbolicMap::clear_tessellation()
 {
-    m_tesselatingIterator.clear();
-    m_tesselationMeshes.clear();
+    m_tessellatingIterator.clear();
+    m_tessellationMeshes.clear();
+    m_tessellationIndices.clear();
 }
 
 void MeshLib::HyperbolicMap::compute_geodesic_cycles()

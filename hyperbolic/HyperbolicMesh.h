@@ -74,35 +74,6 @@ struct PtrCompare
     }
 };
 
-//template <typename V, typename E, typename F, typename H>
-//class THyperbolicMesh : public CBaseMesh<V, E, F, H>
-//{
-//public:
-//    typedef V CVertex;
-//    typedef E CEdge;
-//    typedef F CFace;
-//    typedef H CHalfEdge;
-//
-//    typedef CBoundary<V, E, F, H>                   CBoundary;
-//    typedef CLoop<V, E, F, H>                       CLoop;
-//
-//    typedef MeshVertexIterator<V, E, F, H>          MeshVertexIterator;
-//    typedef MeshEdgeIterator<V, E, F, H>            MeshEdgeIterator;
-//    typedef MeshFaceIterator<V, E, F, H>            MeshFaceIterator;
-//    typedef MeshHalfEdgeIterator<V, E, F, H>        MeshHalfEdgeIterator;
-//
-//    typedef VertexVertexIterator<V, E, F, H>        VertexVertexIterator;
-//    typedef VertexEdgeIterator<V, E, F, H>          VertexEdgeIterator;
-//    typedef VertexFaceIterator<V, E, F, H>          VertexFaceIterator;
-//    typedef VertexInHalfedgeIterator<V, E, F, H>    VertexInHalfedgeIterator;
-//    typedef VertexOutHalfedgeIterator<V, E, F, H>   VertexOutHalfedgeIterator;
-//
-//    typedef FaceVertexIterator<V, E, F, H>          FaceVertexIterator;
-//    typedef FaceEdgeIterator<V, E, F, H>            FaceEdgeIterator;
-//    typedef FaceHalfedgeIterator<V, E, F, H>        FaceHalfedgeIterator;
-//};
-//typedef THyperbolicMesh<CHyperbolicVertex, CHyperbolicEdge, CHyperbolicFace, CHyperbolicHalfEdge> CHyperbolicMesh;
-
 class CHyperbolicMesh : public CBaseMesh<CHyperbolicVertex, CHyperbolicEdge, CHyperbolicFace, CHyperbolicHalfEdge>
 {
 protected:
@@ -139,14 +110,14 @@ public:
     //
     CHyperbolicMesh() {}
 
-    //
+    // build structures from other mesh at constructing
     CHyperbolicMesh(const CHyperbolicMesh& mesh)
     {
         //printf("$");
         copy_from(mesh);
     }
 
-    // explicit move contructor for vector expansion
+    // explicit move contructor for vector resizing
     CHyperbolicMesh(CHyperbolicMesh&& other) noexcept
     {
         //printf("&");
@@ -185,7 +156,7 @@ protected:
     // edge map
 
 protected:
-    //
+    // copy structure information
     static void _copy(const CHyperbolicMesh& from, CHyperbolicMesh& to);
 };
 }

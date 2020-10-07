@@ -23,24 +23,34 @@ public:
 
     void set_mesh(M* pMesh);
 
+    // practice hyperbolic Ricci flow on reference mesh
     void ricci_flow(double threshold, double lambda, int maxSteps);
 
+    // generate boundaries forming a fundamental domain of the mesh
     void mark_fundamental_domain();
 
+    // slice the mesh into a fundamental domain
     void slice_fundamental_domain();
 
-    void isometrical_embed();
+    // perform hyperbolically isometric embedding of the fundamental domain
+    void isometric_embed();
 
+    // record information of boundary segments (like s(0), s(1), id(s), etc.)
     void sort_domain_boundaries();
 
+    // generate Fuchsian transform generators (based on segments info)
     void compute_fuchsian_group();
 
-    void tesselate_disk(int level = 2);
+    // tessellate Poincare disk (based on the domain and Fuchsian group)
+    void tessellate_disk(int level = 2);
 
-    void tesselate_disk_single_step(int level = 2);
+    // tessellate Poincare disk, one domain at a time
+    void tessellate_disk_single_step(int level = 2);
 
-    void clear_tesselation();
+    // clear tessellating results
+    void clear_tessellation();
 
+    // generate hyperbolic lines of each boundary segments
     void compute_geodesic_cycles();
 
     M& open_mesh() { return m_openMesh; }
@@ -50,7 +60,9 @@ public:
     //M& domain_mesh() { return *m_pMesh; }
     //M& domain_mesh() { return m_openMesh; }
 
-    std::vector<M>& tesselation_meshes() { return m_tesselationMeshes; }
+    std::vector<M>& tessellation_meshes() { return m_tessellationMeshes; }
+
+    int tessellation_index(int mid) { return m_tessellationIndices[mid]; }
 
     std::vector<std::pair<CPoint2, double>>& geodesic_circles() { return m_circles; }
 
@@ -65,7 +77,7 @@ protected:
     M m_domainMesh;
 
     // sub domains
-    std::vector<M> m_tesselationMeshes;
+    std::vector<M> m_tessellationMeshes;
 
     // ricci flow
     HyperbolicRicciFlow m_flow;
@@ -76,20 +88,23 @@ protected:
     // vertex of domain that on the same point on the original mesh
     std::unordered_map<int, int> m_vertIndexMap;
 
-    // domain segments: k |-> [s_k(0), s_k(1)]
+    // domain segments, k -> [s_k(0), s_k(1)]
     std::unordered_map<int, std::pair<int, int>> m_segments;
 
-    // the Mobius transforms for tesselating whole Poincare disk
+    // Mobius transforms, k -> T_k: [s_k(0), s_k(1)] |-> [s_{-k}(0), s_{-k}(1)]
     std::unordered_map<int, MobiusTransform<double>> m_fuchsianGroupGenerators;
 
     // all actions from Fuchsian group
-    Tree<int> m_tesselatingActions;
+    Tree<int> m_tessellatingActions;
 
-    // for single step disk tesselation
-    Tree<int>::PathIterator m_tesselatingIterator;
+    // for single step disk tessellation
+    Tree<int>::PathIterator m_tessellatingIterator;
 
-    // geodesic circles (center, radius)
+    // geodesic lines in form of circle (center, radius)
     std::vector<std::pair<CPoint2, double>> m_circles;
+
+    // color of tessellating domains, id -> k of last Mobius transform T_{-k}
+    std::unordered_map<int, int> m_tessellationIndices;
 };
 };
 
