@@ -24,7 +24,7 @@ Follow the instruction in the README.md of each algorithm folder.
 
 | Original surface | Universal covering space |
 | ---------------- | ------------------------ |
-| ![alt-text](results/genus2.png?raw=false)  | ![alt-text](results/genus2-a.png?raw=false)  |
-| ![alt-text](results/genus3.png?raw=false)  | ![alt-text](results/genus3-a.png?raw=false)  |
-| ![alt-text](results/vase.png?raw=false)    | ![alt-text](results/vase-a.png?raw=false)    |
-| ![alt-text](results/amphora.png?raw=false) | ![alt-text](results/amphora-a.png?raw=false) |
+| ![alt-text](results/genus2.png =100x)  | ![alt-text](results/genus2-a.png =100x)  |
+| ![alt-text](results/genus3.png =100x)  | ![alt-text](results/genus3-a.png =100x)  |
+| ![alt-text](results/vase.png =100x)    | ![alt-text](results/vase-a.png =100x)    |
+| ![alt-text](results/amphora.png =100x) | ![alt-text](results/amphora-a.png =100x) |
