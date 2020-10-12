@@ -3,6 +3,233 @@
 #include <set>
 #include <queue>
 
+#include "MeshGraph.h"
+
+#if 1
+inline double euclidean_cosine_law(double a, double b, double c)
+{
+    double cs = (a * a + b * b - c * c) / (2 * a * b);
+    return std::acos(cs);
+}
+
+void MeshLib::CutGraph::generate()
+{
+    if (!m_pMesh) return;
+
+    m_sharps.clear();
+
+    for (M::CEdge* pE : m_pMesh->edges())
+        m_sharps[pE] = 0;
+
+    // find base point
+    M::CVertex* pVs = m_pMesh->vertices().front();
+
+    int maxValence = INT_MIN;
+    for (M::CVertex* pV : m_pMesh->vertices())
+    {
+        int valence = 0;
+        for (M::VertexVertexIterator viter(pV); !viter.end(); ++viter)
+            ++valence;
+        if (valence >= maxValence)
+        {
+            maxValence = valence;
+            pVs = pV;
+        }
+    }
+
+    // construct shortest-path tree
+    _shortest_path_tree(pVs);
+
+    // select greedy homotopic edges
+    _maximum_spanning_tree();
+
+    // remove edges that not in loops
+    _prune_branch();
+
+    // unsharp all edges
+    for (M::CEdge* pE : m_pMesh->edges())
+        pE->sharp() = 0;
+
+    // mark sharp edges
+    for (auto& p : m_sharps)
+    {
+        M::CEdge* pE = p.first;
+        int color = p.second;
+        if (color) pE->sharp() = color;
+    }
+}
+
+void MeshLib::CutGraph::_prune_branch()
+{
+    Graph<M::CVertex*, M::CEdge*> meshGraph;
+
+    for (M::CEdge* pE : m_pMesh->edges())
+    {
+        if (!m_sharps[pE]) continue;
+        M::CVertex* pV0 = m_pMesh->edgeVertex1(pE);
+        M::CVertex* pV1 = m_pMesh->edgeVertex2(pE);
+        meshGraph.adj()[pV0][pV1] = pE;
+        meshGraph.adj()[pV1][pV0] = pE;
+        m_sharps[pE] = 0; // unsharp all edges
+    }
+
+    meshGraph.prune_branches();
+
+    for (auto& vert : meshGraph.adj())
+    {
+        for (auto& edge : vert.second)
+        {
+            M::CEdge* pE = edge.second;
+            m_sharps[pE] = 1; // remark edges that not pruned
+        }
+    }
+}
+
+void MeshLib::CutGraph::_shortest_path_tree(M::CVertex* pVs)
+{
+    Graph<M::CVertex*, float> meshGraph;
+
+    // graph (whole surface)
+    for (M::CEdge* pE : m_pMesh->edges())
+    {
+        M::CVertex* pV = m_pMesh->edgeVertex1(pE);
+        M::CVertex* pW = m_pMesh->edgeVertex2(pE);
+
+        float w = 1;
+        //float w = (float)(pV->point() - pW->point()).norm();
+
+        if (m_lengths.find(pE) != m_lengths.end())
+            w = m_lengths[pE];
+        else
+            w = (float)(pV->point() - pW->point()).norm();
+
+        meshGraph.adj()[pV][pW] = w;
+        meshGraph.adj()[pW][pV] = w;
+    }
+
+    std::vector< Graph<M::CVertex*, float>::Edge> tree;
+
+    meshGraph.shortest_path_tree(pVs, tree);
+
+    for (auto& edge : tree)
+    {
+        M::CVertex* pV0 = edge.first; // v_0 -> v_1 -> root
+        M::CVertex* pV1 = edge.second.first;
+        float w = edge.second.second;
+
+        //M::CEdge* pE = m_pMesh->vertexEdge(pV0, pV1); // Deprecated
+        M::CEdge* pE = NULL;
+
+        for (M::VertexOutHalfedgeIterator hiter(m_pMesh, pV0); !hiter.end(); ++hiter)
+        {
+            M::CHalfEdge* pH = *hiter;
+            M::CVertex* pV = m_pMesh->halfedgeTarget(pH);
+            if (pV == pV1)
+            {
+                pE = m_pMesh->halfedgeEdge(pH);
+                break;
+            }
+        }
+
+        m_sharps[pE] = 1;
+        m_dists[pV0] = w;
+    }
+}
+
+void MeshLib::CutGraph::_maximum_spanning_tree()
+{
+    // construct dual graph (locus of fire-spreading)
+    Graph<M::CFace*, M::CEdge*> dualGraph;
+
+    std::queue<M::CFace*> q;
+    std::unordered_map<M::CEdge*, bool> cross;
+
+    for (auto& p : m_sharps)
+    {
+        M::CEdge* pE = p.first;
+        if (!p.second) cross[pE] = false;
+    }
+
+    M::CFace* pFs = m_pMesh->faces().back();
+    q.push(pFs);
+
+    while (!q.empty())
+    {
+        M::CFace* pF = q.front();
+        q.pop();
+
+        for (M::FaceEdgeIterator eiter(pF); !eiter.end(); ++eiter)
+        {
+            M::CEdge* pE = *eiter;
+
+            // never cross a boundary edge
+            if (pE->boundary()) continue;
+
+            // never cross a pre-marked edge
+            if (m_sharps[pE]) continue;
+
+            M::CFace* pSymF = m_pMesh->edgeFace1(pE);
+            if (pSymF == pF) pSymF = m_pMesh->edgeFace2(pE);
+
+            if (!cross[pE])
+            {
+                dualGraph.adj()[pF][pSymF] = pE;
+                dualGraph.adj()[pSymF][pF] = pE;
+                cross[pE] = true;
+                q.push(pSymF);
+            }
+        }
+    }
+
+    // eliminate the edges forming an exact loop
+    dualGraph.prune_branches();
+
+    // construct maximum-spanning tree
+    Graph<M::CFace*, float> mstGraph;
+
+    for (auto& vert : dualGraph.adj())
+    {
+        M::CFace* pF0 = vert.first; // v
+
+        for (auto& edge : vert.second)
+        {
+            M::CFace* pF1 = edge.first; // u
+            M::CEdge* pE = edge.second; // w
+
+            M::CVertex* pV0 = m_pMesh->edgeVertex1(pE);
+            M::CVertex* pV1 = m_pMesh->edgeVertex2(pE);
+            float d0 = m_dists[pV0];
+            float d1 = m_dists[pV1];
+            float w = (float)(pV0->point() - pV1->point()).norm() + d0 + d1;
+
+            mstGraph.adj()[pF0][pF1] = w;
+            mstGraph.adj()[pF1][pF0] = w;
+        }
+    }
+
+    std::vector<Graph<M::CFace*, float>::Edge> tree;
+    mstGraph.maximum_spanning_tree(tree);
+
+    // find greedy homotopic basis
+    for (auto& vert : dualGraph.adj())
+    {
+        for (auto& edge : vert.second)
+        {
+            M::CEdge* pE = edge.second;
+            m_sharps[pE] = 1; // label all edges in dual graph sharp
+        }
+    }
+
+    for (auto& edge : tree)
+    {
+        M::CFace* pF0 = edge.first;
+        M::CFace* pF1 = edge.second.first;
+        M::CEdge* pE = dualGraph.adj()[pF0][pF1];
+        m_sharps[pE] = 0; // unsharp these edges in MST
+    }
+}
+
+#else
 void MeshLib::CutGraph::generate()
 {
     if (!m_pMesh) return;
@@ -323,3 +550,4 @@ int MeshLib::CutGraph::_shrink_triangles()
 
     return count;
 }
+#endif

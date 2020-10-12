@@ -20,11 +20,11 @@ public:
 
     void set_mesh(M* pMesh) { m_pMesh = pMesh; }
 
-    void set_metrics(std::unordered_map<M::CVertex*, double>& factors);
-
     void embed();
 
     std::unordered_map<M::CVertex*, CPoint2>& uv() { return m_uv; }
+
+    std::unordered_map<M::CEdge*, double>& lengths() { return m_lengths; }
 
 protected:
     //
@@ -32,6 +32,9 @@ protected:
 
     //
     void _embed_face(M::CFace* face, M::CHalfEdge* halfedge);
+
+    //
+    M::CFace* _first_face();
 
 protected:
     //

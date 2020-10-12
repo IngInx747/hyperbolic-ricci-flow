@@ -189,10 +189,17 @@ void drawSharpEdges(M* pMesh)
         if (pE->sharp())
         {
             set_color(pE->sharp());
-            M::CVertex* p0 = pMesh->edgeVertex1(pE);
-            M::CVertex* p1 = pMesh->edgeVertex2(pE);
-            glVertex3f(p0->point()[0], p0->point()[1], p0->point()[2]);
-            glVertex3f(p1->point()[0], p1->point()[1], p1->point()[2]);
+            M::CVertex* pV0 = pMesh->edgeVertex1(pE);
+            M::CVertex* pV1 = pMesh->edgeVertex2(pE);
+            CPoint p0 = pV0->point();
+            CPoint p1 = pV1->point();
+            //CPoint n0 = pV0->normal();
+            //CPoint n1 = pV1->normal();
+            //double offset = 0.01;
+            //p0 = p0 + n0 * offset;
+            //p1 = p1 + n1 * offset;
+            glVertex3f(p0[0], p0[1], p0[2]);
+            glVertex3f(p1[0], p1[1], p1[2]);
         }
     }
     glEnd();

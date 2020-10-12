@@ -7,6 +7,8 @@
 #include <limits>
 #include <queue>
 
+#include "DisjointSets.h"
+
 template<class V, class W>
 W Graph<V, W>::shortest_distance(V source, V target)
 {
@@ -16,7 +18,7 @@ W Graph<V, W>::shortest_distance(V source, V target)
     std::priority_queue<Pair, std::vector<Pair>, std::greater<Pair>> pq;
 
     pq.push(Pair(static_cast<W>(0), source));
-    dist[source] = 0;
+    dist[source] = static_cast<W>(0);
 
     while (!pq.empty())
     {
@@ -56,8 +58,8 @@ W Graph<V, W>::shortest_path(V source, V target, std::vector<V>& path)
     std::priority_queue<Pair, std::vector<Pair>, std::greater<Pair> > pq;
 
     pq.push(Pair(static_cast<W>(0), source));
+    dist[source] = static_cast<W>(0);
     parent[source] = source;
-    dist[source] = 0;
 
     while (!pq.empty())
     {
@@ -95,6 +97,51 @@ W Graph<V, W>::shortest_path(V source, V target, std::vector<V>& path)
     }
 
     return dist[target];
+}
+
+template<class V, class W>
+void Graph<V, W>::shortest_path_tree(V root, std::vector<Edge>& tree)
+{
+    using Pair = std::pair<W, V>;
+
+    std::unordered_map<V, W> dist;
+    std::unordered_map<V, V> parent;
+    std::priority_queue<Pair, std::vector<Pair>, std::greater<Pair> > pq;
+
+    pq.push(Pair(static_cast<W>(0), root));
+    dist[root] = static_cast<W>(0);
+    //parent[root] = root;
+
+    while (!pq.empty())
+    {
+        V v = pq.top().second;
+        pq.pop();
+
+        for (auto& p : m_G[v])
+        {
+            V u = p.first;
+            W w = p.second;
+
+            if (dist.find(u) == dist.end())
+                dist[u] = std::numeric_limits<W>::max();
+
+            // rest edge v-u
+            if (dist[u] > dist[v] + w)
+            {
+                dist[u] = dist[v] + w;
+                pq.push(std::make_pair(dist[u], u));
+                parent[u] = v;
+            }
+        }
+    }
+
+    for (auto& p : parent)
+    {
+        V v = p.first;
+        V u = p.second; // parent of v
+        W d = dist[v]; // distance to root
+        tree.push_back(Edge(v, std::make_pair(u, d)));
+    }
 }
 
 template<class V, class W>
@@ -447,6 +494,96 @@ void Graph<V, W>::detour_components(std::vector<std::vector<V>>& components)
 
             if (detour.size() > 1)
                 components.push_back(detour);
+        }
+    }
+}
+
+template<class V, class W>
+inline void Graph<V, W>::prune_branches()
+{
+    std::queue<V> q; // valence-1 vertices
+    std::unordered_set<V> vSet; // vertices to be pruned
+    std::unordered_map<V, int> valences; // vertex |-> adjacent sharp edges number
+
+    // 1. Compute the valence of each vertex, and record all valence-1 vertices.
+    // This step just fetches current valence-1 vertices. During pruning, more
+    // valence-1 vertices will be generated.
+    for (auto& p : m_G)
+    {
+        V v = p.first;
+        int nv = (int)p.second.size();
+        valences[v] = nv;
+        if (nv <= 1) vSet.insert(v);
+    }
+
+    for (V v : vSet)
+        q.push(v);
+
+    // 2. Remove the segments which attached to valence-1 vertices.
+    // After getting first batch of valence-1 vertices, prune and find
+    // new valence-1 vertices recursively.
+    while (!q.empty())
+    {
+        V v = q.front(); // valence-1 vertex
+        q.pop();
+
+        int nv = valences[v];
+
+        if (nv == 1)
+        {
+            V u = m_G[v].begin()->first;
+            m_G[u].erase(v);
+            m_G.erase(v);
+            valences.erase(v);
+            --valences[u];
+            if (valences[u] <= 1) q.push(u);
+        }
+        else // nv == 0
+        {
+            m_G.erase(v);
+            valences.erase(v);
+        }
+    }
+}
+
+template<class V, class W>
+void Graph<V, W>::maximum_spanning_tree(std::vector<Edge>& tree)
+{
+    using Pair = std::pair<W, Edge>;
+
+    std::priority_queue<Pair, std::vector<Pair>, std::less<Pair>> pq;
+    DisjointSets<V> uf;
+
+    for (auto& p : m_G)
+    {
+        V v = p.first;
+        uf.insert(v);
+    }
+
+    for (auto& vert : m_G)
+    {
+        V v = vert.first;
+
+        for (auto& edge : vert.second)
+        {
+            V u = edge.first;
+            W w = edge.second;
+            pq.push(std::make_pair(w, Edge(v, std::make_pair(u, w))));
+        }
+    }
+
+    while (!pq.empty())
+    {
+        Edge edge = pq.top().second;
+        pq.pop();
+
+        V v = edge.first;
+        V u = edge.second.first;
+
+        if (uf.find(v) != uf.find(u))
+        {
+            uf.join(v, u);
+            tree.push_back(edge);
         }
     }
 }

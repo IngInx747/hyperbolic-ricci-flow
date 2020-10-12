@@ -8,6 +8,51 @@
 
 #include "HyperbolicMesh.h"
 
+#if 1
+namespace MeshLib
+{
+class CutGraph
+{
+protected:
+    using M = CHyperbolicMesh;
+
+public:
+    CutGraph() {}
+
+    CutGraph(M* pMesh) { set_mesh(pMesh); }
+
+    void set_mesh(M* pMesh) { m_pMesh = pMesh; }
+
+    void generate();
+
+    std::unordered_map<M::CEdge*, float>& lengths() { return m_lengths; }
+
+protected:
+    // prune branches in the sharp-edge graph
+    void _prune_branch();
+
+    // construct shortest-path tree rooted at given vertex
+    void _shortest_path_tree(M::CVertex* pVs);
+
+    // construct maximum-spanning tree where w(e*) = |\sigma(e)|
+    void _maximum_spanning_tree();
+
+protected:
+    // reference mesh
+    M* m_pMesh = NULL;
+
+    // sharp edges
+    std::unordered_map<M::CEdge*, int> m_sharps;
+
+    // edge lengths
+    std::unordered_map<M::CEdge*, float> m_lengths;
+
+    // distance from vertex to root
+    std::unordered_map<M::CVertex*, float> m_dists;
+};
+}
+
+#else
 namespace MeshLib
 {
 class CutGraph
@@ -50,5 +95,6 @@ protected:
     std::unordered_set<M::CEdge*> m_sharps;
 };
 } // namespace MeshLib
+#endif
 
 #endif // !_CUT_GRAPH_H_

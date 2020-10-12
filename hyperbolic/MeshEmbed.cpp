@@ -83,50 +83,6 @@ inline bool cycle_intersect_hy(UV v0, UV v1, double hr0, double hr1, UV& v2, boo
 	return cycle_intersect_eu(c0, c1, r0, r1, v2, ccw);
 }
 
-void MeshLib::HyperbolicEmbed::set_metrics(std::unordered_map<M::CVertex*, double>& factors)
-{
-	for (M::MeshEdgeIterator eiter(m_pMesh); !eiter.end(); ++eiter)
-	{
-		M::CEdge* pE = *eiter;
-		M::CVertex* pV0 = m_pMesh->edgeVertex1(pE);
-		M::CVertex* pV1 = m_pMesh->edgeVertex2(pE);
-		double length = m_pMesh->edgeLength(pE);
-		double u0 = factors[pV0];
-		double u1 = factors[pV1];
-		length = hyperbolic_length_scale(length, u0, u1);
-		m_lengths[pE] = length;
-	}
-
-	//for (M::MeshFaceIterator fiter(m_pMesh); !fiter.end(); ++fiter)
-	//{
-	//	M::CFace* pF = *fiter;
-	//	M::CHalfEdge* hs[3];
-	//	M::CEdge* es[3];
-	//	double ls[3];
-	//
-	//	hs[0] = m_pMesh->faceMostCcwHalfEdge(pF);
-	//	hs[1] = m_pMesh->faceNextCcwHalfEdge(hs[0]);
-	//	hs[2] = m_pMesh->faceNextCcwHalfEdge(hs[1]);
-	//	es[0] = m_pMesh->halfedgeEdge(hs[2]); // reorder to convention
-	//	es[1] = m_pMesh->halfedgeEdge(hs[0]);
-	//	es[2] = m_pMesh->halfedgeEdge(hs[1]);
-	//	ls[0] = m_lengths[es[0]];
-	//	ls[1] = m_lengths[es[1]];
-	//	ls[2] = m_lengths[es[2]];
-	//
-	//	//printf("r0=%lf, r1=%lf, r2=%lf\n", ls[0], ls[1], ls[2]);
-	//
-	//	for (int i = 0; i < 3; ++i)
-	//	{
-	//		double a = ls[i];
-	//		double b = ls[(i + 1) % 3];
-	//		double c = ls[(i + 2) % 3];
-	//		assert(a < b + c);
-	//		assert(a > fabs(b - c));
-	//	}
-	//}
-}
-
 void MeshLib::HyperbolicEmbed::embed()
 {
 	for (M::CVertex* pV : m_pMesh->vertices())
@@ -135,7 +91,8 @@ void MeshLib::HyperbolicEmbed::embed()
 	for (M::CFace* pF : m_pMesh->faces())
 		m_faceVisit[pF] = false;
 
-	M::CFace* pFs = *m_pMesh->faces().rbegin();
+	//M::CFace* pFs = m_pMesh->faces().back();
+	M::CFace* pFs = _first_face();
 	std::queue<M::CFace*> q;
 
 	_embed_first_face(pFs);
@@ -249,4 +206,103 @@ void MeshLib::HyperbolicEmbed::_embed_face(M::CFace* face, M::CHalfEdge* halfedg
 	m_uv[pV2] = p2;
 
 	m_vertVisit[pV2] = true;
+}
+
+MeshLib::HyperbolicEmbed::M::CFace* MeshLib::HyperbolicEmbed::_first_face()
+{
+#if 1
+	using Pair = std::pair<float, M::CVertex*>;
+
+	std::unordered_map<M::CVertex*, float> dist;
+	std::priority_queue<Pair, std::vector<Pair>, std::greater<Pair>> pq;
+	std::unordered_map<M::CVertex*, std::unordered_map<M::CVertex*, float>> graph;
+	M::CVertex* pLastV = NULL;
+
+	for (M::CEdge* pE : m_pMesh->edges())
+	{
+		M::CVertex* pV0 = m_pMesh->edgeVertex1(pE);
+		M::CVertex* pV1 = m_pMesh->edgeVertex2(pE);
+		graph[pV0][pV1] = (float)m_lengths[pE];
+		graph[pV1][pV0] = (float)m_lengths[pE];
+	}
+
+	for (M::CVertex* pV : m_pMesh->vertices())
+	{
+		if (pV->boundary()) // Warning
+		{
+			pq.push(Pair(0.f, pV));
+			dist[pV] = 0.f;
+		}
+	}
+
+	while (!pq.empty())
+	{
+		M::CVertex* pV = pq.top().second;
+		pq.pop();
+
+		for (auto& p : graph[pV])
+		{
+			M::CVertex* pW = p.first;
+			float w = p.second;
+
+			if (dist.find(pW) == dist.end())
+				dist[pW] = std::numeric_limits<float>::max();
+
+			if (dist[pW] > dist[pV] + w)
+			{
+				dist[pW] = dist[pV] + w;
+				pq.push(std::make_pair(dist[pW], pW));
+				pLastV = pW;
+			}
+		}
+	}
+
+	return m_pMesh->halfedgeFace(m_pMesh->vertexHalfedge(pLastV));
+
+#else
+	std::queue<M::CFace*> q;
+	std::unordered_map<M::CFace*, bool> visit;
+	M::CFace* pLastF = NULL;
+
+	for (M::CFace* pF : m_pMesh->faces())
+	{
+		visit[pF] = false;
+	}
+
+	// boundary faces
+	for (M::CEdge* pE : m_pMesh->edges())
+	{
+		if (pE->boundary())
+		{
+			M::CFace* pF = m_pMesh->edgeFace1(pE);
+			if (!pF) pF = m_pMesh->edgeFace2(pE);
+			q.push(pF);
+			visit[pF] = true;
+		}
+	}
+
+	while (!q.empty())
+	{
+		M::CFace* pF = q.front();
+		q.pop();
+		pLastF = pF;
+
+		for (M::FaceEdgeIterator eiter(pF); !eiter.end(); ++eiter)
+		{
+			M::CEdge* pE = *eiter;
+			if (pE->boundary()) continue;
+
+			M::CFace* pSymF = m_pMesh->edgeFace1(pE);
+			if (pSymF == pF) pSymF = m_pMesh->edgeFace2(pE);
+
+			if (!visit[pSymF])
+			{
+				visit[pSymF] = true;
+				q.push(pSymF);
+			}
+		}
+	}
+
+	return pLastF;
+#endif
 }

@@ -13,6 +13,11 @@ inline int compute_chi(MeshLib::CHyperbolicMesh& mesh)
     return mesh.numVertices() + mesh.numFaces() - mesh.numEdges();
 }
 
+inline double hyperbolic_length_scale(double length, double u0, double u1)
+{
+    return std::asinh(std::exp((u0 + u1) * 0.5) * std::sinh(length * 0.5)) * 2;
+}
+
 void MeshLib::HyperbolicMap::set_mesh(M* pMesh)
 {
     m_pMesh = pMesh;
@@ -39,9 +44,34 @@ void MeshLib::HyperbolicMap::mark_fundamental_domain()
 
     printf("[Hyperbolic Map] V+F-E = %d, genus = %d, Canonical FD = %d\n", chi, genus, genus * 4);
 
-	// generate cut graph to form a fundamental domain
-	CutGraph(&mesh).generate();
+    // generate cut graph to form a fundamental domain
+    CutGraph cutGraph(&mesh);
+    std::unordered_map<M::CVertex*, double> factors;
 
+    for (auto& p : m_flow.factors())
+    {
+        int id = p.first->id();
+        double u = p.second;
+
+        M::CVertex* pVt = mesh.idVertex(id);
+        assert(pVt);
+        factors[pVt] = u;
+    }
+
+    for (M::CEdge* pE : mesh.edges())
+    {
+        M::CVertex* pV0 = mesh.edgeVertex1(pE);
+        M::CVertex* pV1 = mesh.edgeVertex2(pE);
+        double length = mesh.edgeLength(pE);
+        double u0 = factors[pV0];
+        double u1 = factors[pV1];
+        length = hyperbolic_length_scale(length, u0, u1);
+        cutGraph.lengths()[pE] = (float)length;
+    }
+
+    cutGraph.generate();
+
+    //
     Graph<M::CVertex*, M::CEdge*> fundDomGraph;
 
     // populate graph for next steps
@@ -197,7 +227,20 @@ void MeshLib::HyperbolicMap::isometric_embed()
     }
 
     HyperbolicEmbed embed(&mesh);
-    embed.set_metrics(factors);
+
+    // set embedding lengths
+    for (M::MeshEdgeIterator eiter(&mesh); !eiter.end(); ++eiter)
+    {
+        M::CEdge* pE = *eiter;
+        M::CVertex* pV0 = mesh.edgeVertex1(pE);
+        M::CVertex* pV1 = mesh.edgeVertex2(pE);
+        double length = mesh.edgeLength(pE);
+        double u0 = factors[pV0];
+        double u1 = factors[pV1];
+        length = hyperbolic_length_scale(length, u0, u1);
+        embed.lengths()[pE] = length;
+    }
+
     embed.embed();
     
     for (auto& p : embed.uv())

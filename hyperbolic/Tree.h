@@ -107,9 +107,13 @@ public:
 			{
 				Node node = q.front();
 				q.pop();
+				
+				T vp = node->value; // Mobius transform specification
 
 				for (const T& v : generators)
 				{
+					if (v + vp == 0) continue; // Mobius transform specification
+
 					Node child = std::make_shared<TreeNode>(v);
 					node->children.push_back(child);
 					child->parent = node.get();

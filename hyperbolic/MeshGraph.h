@@ -15,6 +15,7 @@ class Graph
 public:
     using Edge = std::pair<V, std::pair<V, W>>;
 
+public:
     /// Get adjancent table
     /// @return adjancent table
     std::unordered_map<V, std::unordered_map<V, W>>& adj() { return m_G; }
@@ -31,6 +32,11 @@ public:
     /// @param [OUT] shortest path where vertices are ordered from target to source
     /// @return distance of the shortest path
     W shortest_path(V source, V target, std::vector<V>& path);
+
+    /// Construct shortest-path tree rooted at given vertex
+    /// @param [IN]  starting vertex
+    /// @param [OUT] edges in the shortest-path tree
+    void shortest_path_tree(V root, std::vector<Edge>& tree);
 
     /// Find representative vertices of every connecting components in the graph
     /// @param [OUT] representative vertices of connecting components
@@ -51,6 +57,14 @@ public:
     /// Find all detours in the graph
     /// @param [OUT] vertices of every detours in the graph, stored in path order
     void detour_components(std::vector<std::vector<V>>& components);
+
+    /// Prune branches in the graph
+    /// This method will alter graph structure
+    void prune_branches();
+
+    /// Find a maximum-spanning tree (Kruskal algorithm)
+    /// @param[OUT] edges in the maximum-spanning tree
+    void maximum_spanning_tree(std::vector<Edge>& tree);
 
 protected:
     /// Find representative edges of every cycles in the graph
