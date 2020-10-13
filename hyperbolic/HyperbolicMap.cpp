@@ -24,8 +24,6 @@ void MeshLib::HyperbolicMap::set_mesh(M* pMesh)
     m_pMesh->reIndexVert();
     m_flow.set_mesh(m_pMesh);
     m_flow.initialize();
-
-    open_mesh().copy_from(*m_pMesh);
 }
 
 void MeshLib::HyperbolicMap::ricci_flow(double threshold, double lambda, int maxSteps)
@@ -34,10 +32,9 @@ void MeshLib::HyperbolicMap::ricci_flow(double threshold, double lambda, int max
     //m_flow.compute_metrics_gradient(threshold, lambda, maxSteps);
 }
 
-void MeshLib::HyperbolicMap::mark_fundamental_domain()
+void MeshLib::HyperbolicMap::greedy_homotopy_generators()
 {
-    M& mesh = open_mesh();
-    mesh.copy_from(*m_pMesh);
+    M& mesh = original_mesh();
 
     int chi = compute_chi(mesh);
     int genus = (2 - chi) / 2;
@@ -70,6 +67,15 @@ void MeshLib::HyperbolicMap::mark_fundamental_domain()
     }
 
     cutGraph.generate();
+    m_base_id = mesh.vertexId(cutGraph.base_point());
+}
+
+void MeshLib::HyperbolicMap::mark_fundamental_domain()
+{
+    M& mesh = original_mesh();
+
+    int chi = compute_chi(mesh);
+    int genus = (2 - chi) / 2;
 
     //
     Graph<M::CVertex*, M::CEdge*> fundDomGraph;
@@ -114,6 +120,7 @@ void MeshLib::HyperbolicMap::mark_fundamental_domain()
 void MeshLib::HyperbolicMap::slice_fundamental_domain()
 {
     M& mesh = open_mesh();
+    mesh.copy_from(*m_pMesh);
 
     // cut edges along fundamental domain
     // divide sharp edge into two edges
@@ -174,6 +181,7 @@ void MeshLib::HyperbolicMap::slice_fundamental_domain()
         std::unordered_map<int, int>& m_id;
     } vd(m_vertIndexMap);
 
+    // slice mesh along sharp edges
     MeshSlicer slicer(&mesh);
     slicer.set_edge_decorator(&ed);
     slicer.set_vertex_decorator(&vd);
@@ -271,8 +279,73 @@ void MeshLib::HyperbolicMap::isometric_embed()
 
 void MeshLib::HyperbolicMap::sort_domain_boundaries()
 {
+    int chi = compute_chi(open_mesh());
+    int genus = (2 - chi) / 2;
     M& mesh = domain_mesh();
+#if 0
+    M::CVertex* pStarV = mesh.idVertex(m_base_id);
+    std::unordered_set<M::CVertex*> basePointSet;
 
+    basePointSet.insert(pStarV);
+
+    for (auto& p : m_vertIndexMap)
+    {
+        int idt = p.first;
+        int idf = p.second;
+
+        if (idf == m_base_id)
+        {
+            M::CVertex* pV = mesh.idVertex(idt);
+            basePointSet.insert(pV);
+        }
+    }
+
+    for (M::CVertex* pV : basePointSet)
+    {
+        printf("%d -> %d\n", pV->id(), m_base_id);
+    }
+
+    // beginning vertex of each segment with segment index
+    std::vector<M::CVertex*> basePoints; // v_1, v_2, ..., v_{4g}, v_0
+    M::CVertex* pIterV = pStarV;
+
+    // sort out segments along boundary ccwly
+    do {
+        M::CHalfEdge* pH = mesh.vertexMostClwOutHalfEdge(pIterV);
+        M::CEdge* pE = mesh.halfedgeEdge(pH);
+
+        if (basePointSet.find(pIterV) != basePointSet.end())
+            basePoints.push_back(pIterV);
+
+        pIterV = mesh.halfedgeTarget(pH); // next vertex, ccw along boundary
+    } while (pIterV != pStarV);
+
+    int nv = (int)basePoints.size() - 1; // 4g
+    assert(nv == genus * 4);
+
+    // segment id k |-> [s_k(0), s_k(1)]
+    m_segments.clear();
+
+    for (int i = 0; i < nv; ++i)
+    {
+        M::CVertex* pV0 = basePoints[i];
+        M::CVertex* pV1 = basePoints[i + 1];
+        int vid0 = pV0->id();
+        int vid1 = pV1->id();
+
+        int gid = i / 4; // group id 0~(g-1)
+        int cls = i % 4; // class id 0~3
+        int sid = 0;
+
+        if (cls == 0) sid = gid * 2 + 1;
+        else if (cls == 1) sid = gid * 2 + 2;
+        else if (cls == 2) sid = -(gid * 2 + 1);
+        else if (cls == 3) sid = -(gid * 2 + 2);
+
+        m_segments[sid] = std::make_pair(vid0, vid1);
+    }
+
+#else
     // look for a vertex on domain boundary
     M::CVertex* pStaV = NULL;
     for (M::CVertex* pV : mesh.vertices())
@@ -288,7 +361,7 @@ void MeshLib::HyperbolicMap::sort_domain_boundaries()
         printf("[Hyperbolic Map] Please do hyperbolically isometric embedment first.\n");
         return;
     }
-
+    
     // go to the nearest intersection between two arbitrary adjacent segments
     while (true)
     {
@@ -299,28 +372,27 @@ void MeshLib::HyperbolicMap::sort_domain_boundaries()
         if (si != so) break;
         pStaV = mesh.halfedgeTarget(pHo);
     }
-
+    
     // beginning vertex of each segment with segment index
     std::vector<std::pair<M::CVertex*, int>> starters;
-
+    
     M::CVertex* pVs = pStaV;
-
+    
     // sort out segment with its beginning vertex
     do {
         M::CHalfEdge* pHi = mesh.vertexMostCcwInHalfEdge(pVs);
         M::CHalfEdge* pHo = mesh.vertexMostClwOutHalfEdge(pVs);
         int si = mesh.halfedgeEdge(pHi)->sharp();
         int so = mesh.halfedgeEdge(pHo)->sharp();
-
+    
         // meet an intersection vertex
         if (si != so) starters.emplace_back(pVs, so);
-
+    
         // go to next vertex, ccw along boundary
         pVs = mesh.halfedgeTarget(pHo);
     } while (pVs != pStaV);
 
     // segment id k |-> [s_k(0), s_k(1)]
-    //std::unordered_map<int, std::pair<M::CVertex*, M::CVertex*>> segments;
     m_segments.clear();
 
     for (int i = 0; i < starters.size(); ++i)
@@ -334,7 +406,7 @@ void MeshLib::HyperbolicMap::sort_domain_boundaries()
         if (m_segments.find(id) != m_segments.end()) id = -id;
         m_segments[id] = std::make_pair(vid0, vid1);
     }
-
+#endif
     printf("[Hyperbolic Map] Domain boundaries:\n");
     for (auto& p : m_segments)
     {

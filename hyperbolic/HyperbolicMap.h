@@ -26,6 +26,9 @@ public:
     // practice hyperbolic Ricci flow on reference mesh
     void ricci_flow(double threshold, double lambda, int maxSteps);
 
+    //
+    void greedy_homotopy_generators();
+
     // generate boundaries forming a fundamental domain of the mesh
     void mark_fundamental_domain();
 
@@ -52,6 +55,8 @@ public:
 
     // generate hyperbolic lines of each boundary segments
     void compute_geodesic_cycles();
+
+    M& original_mesh() { return *m_pMesh; }
 
     M& open_mesh() { return m_openMesh; }
     //M& open_mesh() { return *m_pMesh; }
@@ -87,6 +92,9 @@ protected:
 
     // vertex of domain that on the same point on the original mesh
     std::unordered_map<int, int> m_vertIndexMap;
+
+    // vertex id of base point
+    int m_base_id;
 
     // domain segments, k -> [s_k(0), s_k(1)]
     std::unordered_map<int, std::pair<int, int>> m_segments;

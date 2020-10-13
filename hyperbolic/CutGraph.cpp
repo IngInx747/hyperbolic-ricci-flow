@@ -12,7 +12,7 @@ inline double euclidean_cosine_law(double a, double b, double c)
     return std::acos(cs);
 }
 
-void MeshLib::CutGraph::generate()
+void MeshLib::CutGraph::generate(M::CVertex* base)
 {
     if (!m_pMesh) return;
 
@@ -22,20 +22,26 @@ void MeshLib::CutGraph::generate()
         m_sharps[pE] = 0;
 
     // find base point
-    M::CVertex* pVs = m_pMesh->vertices().front();
+    //M::CVertex* pVs = m_pMesh->vertices().front();
+    M::CVertex* pVs = base;
 
-    int maxValence = INT_MIN;
-    for (M::CVertex* pV : m_pMesh->vertices())
+    if (!pVs)
     {
-        int valence = 0;
-        for (M::VertexVertexIterator viter(pV); !viter.end(); ++viter)
-            ++valence;
-        if (valence >= maxValence)
+        int maxValence = INT_MIN;
+        for (M::CVertex* pV : m_pMesh->vertices())
         {
-            maxValence = valence;
-            pVs = pV;
+            int valence = 0;
+            for (M::VertexVertexIterator viter(pV); !viter.end(); ++viter)
+                ++valence;
+            if (valence >= maxValence)
+            {
+                maxValence = valence;
+                pVs = pV;
+            }
         }
     }
+
+    m_base = pVs;
 
     // construct shortest-path tree
     _shortest_path_tree(pVs);
@@ -200,7 +206,14 @@ void MeshLib::CutGraph::_maximum_spanning_tree()
             M::CVertex* pV1 = m_pMesh->edgeVertex2(pE);
             float d0 = m_dists[pV0];
             float d1 = m_dists[pV1];
-            float w = (float)(pV0->point() - pV1->point()).norm() + d0 + d1;
+
+            float w = 1;
+            if (m_lengths.find(pE) != m_lengths.end())
+                w = m_lengths[pE];
+            else
+                w = (float)(pV0->point() - pV1->point()).norm();
+
+            w += d0 + d1;
 
             mstGraph.adj()[pF0][pF1] = w;
             mstGraph.adj()[pF1][pF0] = w;

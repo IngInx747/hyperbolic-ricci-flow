@@ -23,9 +23,11 @@ public:
 
     void set_mesh(M* pMesh) { m_pMesh = pMesh; }
 
-    void generate();
+    void generate(M::CVertex* base = NULL);
 
     std::unordered_map<M::CEdge*, float>& lengths() { return m_lengths; }
+
+    M::CVertex* base_point() { return m_base; }
 
 protected:
     // prune branches in the sharp-edge graph
@@ -49,6 +51,9 @@ protected:
 
     // distance from vertex to root
     std::unordered_map<M::CVertex*, float> m_dists;
+
+    // base point
+    M::CVertex* m_base = NULL;
 };
 }
 

@@ -20,9 +20,9 @@ int g_win_width, g_win_height;
 int g_button;
 int g_startx, g_starty;
 int g_shade_flag = 0;
+bool g_show_orgn = true;
 bool g_show_domn = true;
 bool g_show_open = true;
-bool g_show_orgn = false;
 bool g_show_axis = false;
 bool g_show_bndr = true;
 bool g_show_circ = true;
@@ -173,7 +173,7 @@ void drawMesh(M* pMesh, int id = 0)
     }
 }
 
-void drawSharpEdges(M* pMesh)
+void drawSharpEdges(M* pMesh, bool use_offset = false)
 {
     if (!g_show_bndr) return;
 
@@ -193,11 +193,14 @@ void drawSharpEdges(M* pMesh)
             M::CVertex* pV1 = pMesh->edgeVertex2(pE);
             CPoint p0 = pV0->point();
             CPoint p1 = pV1->point();
-            //CPoint n0 = pV0->normal();
-            //CPoint n1 = pV1->normal();
-            //double offset = 0.01;
-            //p0 = p0 + n0 * offset;
-            //p1 = p1 + n1 * offset;
+            if (use_offset)
+            {
+                CPoint n0 = pV0->normal();
+                CPoint n1 = pV1->normal();
+                double offset = 0.01;
+                p0 = p0 + n0 * offset;
+                p1 = p1 + n1 * offset;
+            }
             glVertex3f(p0[0], p0[1], p0[2]);
             glVertex3f(p1[0], p1[1], p1[2]);
         }
@@ -270,16 +273,15 @@ void display()
         }
     }
 
-    if (g_show_open)
-    {
-        drawSharpEdges(&g_hyperbolic_map.open_mesh());
-        drawMesh(&g_hyperbolic_map.open_mesh());
-    }
-
     if (g_show_orgn)
     {
-        drawSharpEdges(&g_mesh);
+        drawSharpEdges(&g_mesh, true);
         drawMesh(&g_mesh);
+    }
+
+    if (g_show_open)
+    {
+        // TODO
     }
 
     glPopMatrix();
@@ -313,7 +315,7 @@ void reshape(int w, int h)
 void help()
 {
     printf("1  -  Perform Ricci flow on mesh\n");
-    printf("2  -  Slice mesh into a fundamental domain\n");
+    printf("2  -  Select a fundamental domain\n");
     printf("3  -  Embed domain into Poincare disk\n");
     printf("4  -  Tessellate domains into Poincare disk\n");
     printf("5  -  Tessellate disk, one domain at a time\n");
@@ -341,13 +343,14 @@ void keyBoard(unsigned char key, int x, int y)
             break;
         case '2':
             // generate a cut graph as fundamental domain
+            g_hyperbolic_map.greedy_homotopy_generators();
             g_hyperbolic_map.mark_fundamental_domain();
-            // slice mesh along the fundamental domain
-            g_hyperbolic_map.slice_fundamental_domain();
-            g_show_open = true;
             g_show_bndr = true;
+            g_show_orgn = true;
             break;
         case '3':
+            // slice mesh along the chosen fundamental domain
+            g_hyperbolic_map.slice_fundamental_domain();
             // embed sliced mesh into Poincare disk
             g_hyperbolic_map.isometric_embed();
             // sort out segments on domain boundary
