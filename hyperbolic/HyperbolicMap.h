@@ -65,7 +65,8 @@ public:
     //M& domain_mesh() { return *m_pMesh; }
     //M& domain_mesh() { return m_openMesh; }
 
-    std::vector<M>& tessellation_meshes() { return m_tessellationMeshes; }
+    //std::vector<M>& tessellation_meshes() { return m_tessellationMeshes; }
+    std::vector<std::unordered_map<M::CVertex*, CPoint2>>& tessellation_meshes() { return m_tessellationMeshes; }
 
     int tessellation_index(int mid) { return m_tessellationIndices[mid]; }
 
@@ -82,7 +83,8 @@ protected:
     M m_domainMesh;
 
     // sub domains
-    std::vector<M> m_tessellationMeshes;
+    //std::vector<M> m_tessellationMeshes;
+    std::vector<std::unordered_map<M::CVertex*, CPoint2>> m_tessellationMeshes;
 
     // ricci flow
     HyperbolicRicciFlow m_flow;

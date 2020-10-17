@@ -11,6 +11,7 @@
 #include "viewer/Arcball.h" /*  Arc Ball  Interface         */
 #include "HyperbolicMesh.h"
 #include "HyperbolicMap.h"
+#include "RayCollider.h"
 
 using namespace MeshLib;
 using M = CHyperbolicMesh;
@@ -19,6 +20,7 @@ using M = CHyperbolicMesh;
 int g_win_width, g_win_height;
 int g_button;
 int g_startx, g_starty;
+int g_pick_x, g_pick_y;
 int g_shade_flag = 0;
 bool g_show_orgn = true;
 bool g_show_domn = true;
@@ -26,6 +28,7 @@ bool g_show_open = true;
 bool g_show_axis = false;
 bool g_show_bndr = true;
 bool g_show_circ = true;
+bool g_select_edge = false;
 
 /* rotation quaternion and translation vector for the object */
 CQrot g_obj_rot(1, 0, 0, 0); // 0 0 1 0
@@ -37,6 +40,7 @@ CArcball g_arcball;
 /* global g_mesh */
 CHyperbolicMesh g_mesh;
 HyperbolicMap g_hyperbolic_map;
+RayCollider g_collider;
 
 void set_color(int color)
 {
@@ -140,13 +144,81 @@ void setupLight()
     glLightfv(GL_LIGHT2, GL_POSITION, lightTwoPosition);
 }
 
+void pick_edge(int x, int y)
+{
+    double modelViewMatrix[16];
+    double projectionMatrix[16];
+    int viewport[4];
+    int i, j, k;
+
+    setupEye();
+    glPushMatrix();
+    setupObject();
+
+    // Get transformation matrix in OpenGL
+    glGetDoublev(GL_MODELVIEW_MATRIX, modelViewMatrix);
+    glGetDoublev(GL_PROJECTION_MATRIX, projectionMatrix);
+    glGetIntegerv(GL_VIEWPORT, viewport);
+
+    glPopMatrix();
+
+    // Un-project from 2D screen point to real 3D position.
+    double nearPlaneLocation[3];
+    gluUnProject(x, y, 0.0, modelViewMatrix, projectionMatrix,
+        viewport, &nearPlaneLocation[0], &nearPlaneLocation[1],
+        &nearPlaneLocation[2]);
+
+    double farPlaneLocation[3];
+    gluUnProject(x, y, 1.0, modelViewMatrix, projectionMatrix,
+        viewport, &farPlaneLocation[0], &farPlaneLocation[1],
+        &farPlaneLocation[2]);
+
+    CPoint ro(nearPlaneLocation[0], nearPlaneLocation[1], nearPlaneLocation[2]);
+
+    CPoint rd(farPlaneLocation[0] - nearPlaneLocation[0],
+        farPlaneLocation[1] - nearPlaneLocation[1],
+        farPlaneLocation[2] - nearPlaneLocation[2]);
+
+    double dist = 1e10;
+    M::CFace* pF = g_collider.collide(ro, rd, dist);
+
+    if (pF)
+    {
+        CPoint hit = ro + rd * dist;
+        M::CEdge* pEs = NULL;
+        double hs = 1e20;
+
+        for (M::FaceEdgeIterator eiter(pF); !eiter.end(); ++eiter)
+        {
+            M::CEdge* pE = *eiter;
+            M::CVertex* pV0 = g_mesh.edgeVertex1(pE);
+            M::CVertex* pV1 = g_mesh.edgeVertex2(pE);
+            CPoint p0 = pV0->point();
+            CPoint p1 = pV1->point();
+            double a = (p0 - hit).norm();
+            double b = (p1 - hit).norm();
+            double d = (p1 - p0).norm();
+            double p = (a + b + d) * 0.5;
+            double s = std::sqrt(p * (p - a) * (p - b) * (p - d));
+            double h = 2 * s / d;
+
+            if (h < hs)
+            {
+                pEs = pE;
+                hs = h;
+            }
+        }
+
+        pEs->sharp() = !pEs->sharp();
+    }
+}
+
 /*! draw g_mesh */
-void drawMesh(M* pMesh, int id = 0)
+void drawMesh(M* pMesh)
 {
     glEnable(GL_LIGHTING);
     glLineWidth(1.0);
     glColor3f(153.0 / 255.0, 204.0 / 255.0, 255.0 / 255.0);
-    set_color(id);
 
     for (M::MeshFaceIterator fiter(pMesh); !fiter.end(); ++fiter)
     {
@@ -173,7 +245,7 @@ void drawMesh(M* pMesh, int id = 0)
     }
 }
 
-void drawSharpEdges(M* pMesh, bool use_offset = false)
+void drawSharpEdges(M* pMesh, bool use_offset = true)
 {
     if (!g_show_bndr) return;
 
@@ -203,6 +275,65 @@ void drawSharpEdges(M* pMesh, bool use_offset = false)
             }
             glVertex3f(p0[0], p0[1], p0[2]);
             glVertex3f(p1[0], p1[1], p1[2]);
+        }
+    }
+    glEnd();
+}
+
+void drawDomain(M* pMesh, std::unordered_map<M::CVertex*, CPoint2>& uvs, int id = 0)
+{
+    glEnable(GL_LIGHTING);
+    glLineWidth(1.0);
+    glColor3f(153.0 / 255.0, 204.0 / 255.0, 255.0 / 255.0);
+    set_color(id);
+
+    for (M::MeshFaceIterator fiter(pMesh); !fiter.end(); ++fiter)
+    {
+        glBegin(GL_POLYGON);
+        M::CFace* pF = *fiter;
+        for (M::FaceVertexIterator fviter(pF); !fviter.end(); ++fviter)
+        {
+            M::CVertex* pV = *fviter;
+            CPoint2 p = uvs[pV];
+            CPoint n;
+            switch (g_shade_flag)
+            {
+            case 0:
+                n = pF->normal();
+                break;
+            case 1:
+                n = pV->normal();
+                break;
+            }
+            glNormal3d(n[0], n[1], n[2]);
+            glVertex3d(p[0], p[1], 0);
+        }
+        glEnd();
+    }
+}
+
+void drawDomainSharpEdges(M* pMesh, std::unordered_map<M::CVertex*, CPoint2>& uvs)
+{
+    if (!g_show_bndr) return;
+
+    glDisable(GL_LIGHTING);
+    glLineWidth(5.);
+    glColor3f(0.0f, 1.0f, 0.0f);
+
+    glBegin(GL_LINES);
+    for (M::MeshEdgeIterator eiter(pMesh); !eiter.end(); ++eiter)
+    {
+        M::CEdge* pE = *eiter;
+
+        if (pE->sharp())
+        {
+            set_color(pE->sharp());
+            M::CVertex* pV0 = pMesh->edgeVertex1(pE);
+            M::CVertex* pV1 = pMesh->edgeVertex2(pE);
+            CPoint2 p0 = uvs[pV0];
+            CPoint2 p1 = uvs[pV1];
+            glVertex3f(p0[0], p0[1], 0);
+            glVertex3f(p1[0], p1[1], 0);
         }
     }
     glEnd();
@@ -256,15 +387,15 @@ void display()
 
     if (g_show_domn)
     {
-        drawSharpEdges(&g_hyperbolic_map.domain_mesh());
+        drawSharpEdges(&g_hyperbolic_map.domain_mesh(), false);
         drawMesh(&g_hyperbolic_map.domain_mesh());
 
         for (int i = 0; i < g_hyperbolic_map.tessellation_meshes().size(); ++i)
         {
-            auto& mesh = g_hyperbolic_map.tessellation_meshes()[i];
+            auto& uvs = g_hyperbolic_map.tessellation_meshes()[i];
             int id = g_hyperbolic_map.tessellation_index(i);
-            drawSharpEdges(&mesh);
-            drawMesh(&mesh, id);
+            drawDomainSharpEdges(&g_hyperbolic_map.domain_mesh(), uvs);
+            drawDomain(&g_hyperbolic_map.domain_mesh(), uvs, id);
         }
 
         for (auto& p : g_hyperbolic_map.geodesic_circles())
@@ -275,7 +406,7 @@ void display()
 
     if (g_show_orgn)
     {
-        drawSharpEdges(&g_mesh, true);
+        drawSharpEdges(&g_mesh);
         drawMesh(&g_mesh);
     }
 
@@ -344,11 +475,13 @@ void keyBoard(unsigned char key, int x, int y)
         case '2':
             // generate a cut graph as fundamental domain
             g_hyperbolic_map.greedy_homotopy_generators();
-            g_hyperbolic_map.mark_fundamental_domain();
             g_show_bndr = true;
             g_show_orgn = true;
+            g_select_edge = true;
             break;
         case '3':
+            // mark edge components
+            g_hyperbolic_map.mark_fundamental_domain();
             // slice mesh along the chosen fundamental domain
             g_hyperbolic_map.slice_fundamental_domain();
             // embed sliced mesh into Poincare disk
@@ -358,6 +491,7 @@ void keyBoard(unsigned char key, int x, int y)
             // compute fuchsian group
             g_hyperbolic_map.compute_fuchsian_group();
             g_show_domn = true;
+            g_select_edge = false;
             break;
         case '4':
             // tessellate Poincare disk
@@ -377,6 +511,10 @@ void keyBoard(unsigned char key, int x, int y)
         case '0':
             // clear tessellation
             g_hyperbolic_map.clear_tessellation();
+            break;
+        case 'p':
+            // turn on/off edge selection mode
+            g_select_edge = !g_select_edge;
             break;
         case 'f':
             // Flat Shading
@@ -482,6 +620,8 @@ void mouseClick(int button, int state, int x, int y)
                              g_win_height, 
                              x - g_win_width / 2, 
                              g_win_height - y - g_win_height / 2);
+        g_pick_x = x;
+        g_pick_y = y;
     }
 
     if (button == GLUT_MIDDLE_BUTTON && state == GLUT_DOWN)
@@ -497,6 +637,15 @@ void mouseClick(int button, int state, int x, int y)
         g_starty = y;
         g_button = GLUT_RIGHT_BUTTON;
     }
+
+    if (button == GLUT_LEFT_BUTTON && state == GLUT_UP)
+    {
+        if (g_select_edge && g_pick_x == x && g_pick_y == y)
+        {
+            pick_edge(x, g_win_height - y);
+        }
+    }
+
     return;
 }
 
@@ -580,6 +729,7 @@ int main(int argc, char* argv[])
     g_mesh.normalize();
     g_mesh.computeNormal();
     g_hyperbolic_map.set_mesh(&g_mesh);
+    g_collider.set_mesh(&g_mesh);
     help();
 
     initOpenGL(argc, argv);

@@ -486,12 +486,18 @@ void MeshLib::HyperbolicMap::tessellate_disk(int level)
     // reset
     clear_tessellation();
 
+    M& mesh = domain_mesh();
+
     for (Tree<int>::PathIterator iter(m_tessellatingActions); !iter.end(); ++iter)
     {
         auto path = *iter;
 
-        m_tessellationMeshes.emplace_back(domain_mesh());
-        M& mesh = m_tessellationMeshes.back();
+        // elder implementation
+        //m_tessellationMeshes.emplace_back(domain_mesh());
+        //M& mesh = m_tessellationMeshes.back();
+
+        m_tessellationMeshes.emplace_back();
+        auto& uvs = m_tessellationMeshes.back();
         MobiusTransform<double> mt;
 
         // composite Mobius transforms
@@ -508,7 +514,8 @@ void MeshLib::HyperbolicMap::tessellate_disk(int level)
         {
             std::complex<double> uv(pV->point()[0], pV->point()[1]);
             uv = mt(uv);
-            pV->point() = CPoint(uv.real(), uv.imag(), 0);
+            //pV->point() = CPoint(uv.real(), uv.imag(), 0);
+            uvs[pV] = CPoint2(uv.real(), uv.imag());
         }
 
         // label mesh with id of last Mobius transform
@@ -548,10 +555,14 @@ void MeshLib::HyperbolicMap::tessellate_disk_single_step(int level)
         m_tessellationMeshes.resize(id + 1);
     }
 
-    // copy whole domain
-    M& mesh = m_tessellationMeshes[id];
-    mesh.copy_from(domain_mesh());
+    // copy whole domain (too memory-consuming)
+    //M& mesh = m_tessellationMeshes[id];
+    //mesh.copy_from(domain_mesh());
+
+    auto& uvs = m_tessellationMeshes[id];
     MobiusTransform<double> mt;
+
+    M& mesh = domain_mesh();
 
     // composite Mobius transforms
     printf("[Hyperbolic Map] Fuchsian action : (");
@@ -567,7 +578,8 @@ void MeshLib::HyperbolicMap::tessellate_disk_single_step(int level)
     {
         std::complex<double> uv(pV->point()[0], pV->point()[1]);
         uv = mt(uv);
-        pV->point() = CPoint(uv.real(), uv.imag(), 0);
+        //pV->point() = CPoint(uv.real(), uv.imag(), 0);
+        uvs[pV] = CPoint2(uv.real(), uv.imag());
     }
 
     // label mesh with id of last Mobius transform
