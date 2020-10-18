@@ -67,7 +67,7 @@ void MeshLib::HyperbolicMap::greedy_homotopy_generators()
     }
 
     cutGraph.generate();
-    m_base_id = mesh.vertexId(cutGraph.base_point());
+    //m_base_id = mesh.vertexId(cutGraph.base_point());
 }
 
 void MeshLib::HyperbolicMap::mark_fundamental_domain()
@@ -429,6 +429,8 @@ void MeshLib::HyperbolicMap::compute_fuchsian_group()
 
     M& mesh = domain_mesh();
     std::complex<double> I(1, 0);
+
+    m_fuchsianGroupGenerators.clear();
 
     // compute Mobius transform \alpha_k mapping s_{k}[0,1] to s_{-k}[1,0]
     for (auto& p : m_segments)

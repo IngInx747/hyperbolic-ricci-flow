@@ -42,6 +42,21 @@ CHyperbolicMesh g_mesh;
 HyperbolicMap g_hyperbolic_map;
 RayCollider g_collider;
 
+inline double When()
+{
+#ifndef _WIN32
+    static struct timeval tp;
+    gettimeofday(&tp, NULL);
+    double t = (double)tp.tv_sec;
+    double t1 = (double)tp.tv_usec;
+    return (t + t1 * 1e-6);
+#else
+    clock_t start = clock();
+    double duration = (double)start / CLOCKS_PER_SEC;
+    return duration;
+#endif
+}
+
 void set_color(int color)
 {
     if (!color) return;
@@ -452,6 +467,7 @@ void help()
     printf("5  -  Tessellate disk, one domain at a time\n");
     printf("6  -  Fine boundary with geodesic lines\n");
     printf("0  -  Clear tesselation\n");
+    printf("S  -  Save mesh with sharp edges\n");
     printf("w  -  Wireframe Display\n");
     printf("f  -  Flat Shading \n");
     printf("s  -  Smooth Shading\n");
@@ -495,7 +511,7 @@ void keyBoard(unsigned char key, int x, int y)
             break;
         case '4':
             // tessellate Poincare disk
-            g_hyperbolic_map.tessellate_disk(1);
+            g_hyperbolic_map.tessellate_disk(3);
             g_show_domn = true;
             break;
         case '5':
@@ -553,6 +569,9 @@ void keyBoard(unsigned char key, int x, int y)
         case 'x':
             // Show original mesh
             g_show_axis = !g_show_axis;
+            break;
+        case 'S':
+            g_mesh.write_m("output.m");
             break;
         case '?':
             help();
@@ -731,6 +750,20 @@ int main(int argc, char* argv[])
     g_hyperbolic_map.set_mesh(&g_mesh);
     g_collider.set_mesh(&g_mesh);
     help();
+
+#if 0
+    double t0 = When();
+    g_hyperbolic_map.ricci_flow(1e-9, 1, 100);
+    g_hyperbolic_map.mark_fundamental_domain();
+    g_hyperbolic_map.slice_fundamental_domain();
+    g_hyperbolic_map.isometric_embed();
+    g_hyperbolic_map.sort_domain_boundaries();
+    g_hyperbolic_map.compute_fuchsian_group();
+    //g_hyperbolic_map.tessellate_disk(3);
+    t0 = When() - t0;
+    printf("v:%d, f:%d\n", g_mesh.numVertices(), g_mesh.numFaces());
+    printf("t:%lf sec\n", t0);
+#endif
 
     initOpenGL(argc, argv);
 

@@ -30,12 +30,43 @@ public:
 
     int& sharp() { return m_sharp; };
 
+    void _from_string();
+
+    void _to_string();
+
 protected:
     // sharp flag
     // Boundary edge has non-0 value
     // Value is set based on edge position in fundamental domain
     int m_sharp = 0;
 };
+
+inline void CHyperbolicEdge::_from_string()
+{
+    CParser parser(m_string);
+    for (std::list<CToken*>::iterator titer = parser.tokens().begin(); titer != parser.tokens().end(); titer++)
+    {
+        CToken* pT = *titer;
+
+        if (pT->m_key == "sharp")
+        {
+            std::string line = strutil::trim(pT->m_value, "()");
+            m_sharp = strutil::parseString<int>(line);
+        }
+    }
+};
+
+inline void MeshLib::CHyperbolicEdge::_to_string()
+{
+    m_string.clear();
+
+    if (m_sharp)
+    {
+        m_string.append("sharp=(");
+        m_string.append(std::to_string(m_sharp));
+        m_string.append(")");
+    }
+}
 
 class CHyperbolicHalfEdge : public CHalfEdge
 {

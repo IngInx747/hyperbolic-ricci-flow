@@ -96,7 +96,7 @@ protected:
     std::unordered_map<int, int> m_vertIndexMap;
 
     // vertex id of base point
-    int m_base_id;
+    //int m_base_id;
 
     // domain segments, k -> [s_k(0), s_k(1)]
     std::unordered_map<int, std::pair<int, int>> m_segments;
