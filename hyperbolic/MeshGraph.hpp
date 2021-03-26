@@ -7,7 +7,7 @@
 #include <limits>
 #include <queue>
 
-#include "DisjointSets.h"
+#include "DisjointSet.h"
 
 template<class V, class W>
 W Graph<V, W>::shortest_distance(V source, V target)

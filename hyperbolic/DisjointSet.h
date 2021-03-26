@@ -6,7 +6,7 @@
 #include <unordered_map>
 
 template <class V>
-class DisjointSets
+class DisjointSet
 {
 public:
 	//
